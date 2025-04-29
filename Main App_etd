@@ -1,0 +1,948 @@
+// Main App //
+
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import Box from '@mui/material/Box';
+import {
+  AppBar,
+  Toolbar,
+  Typography,
+  Button,
+  Container,
+  Drawer,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Avatar,
+  Divider
+} from '@mui/material';
+import {
+  Dashboard as DashboardIcon,
+  MedicalServices as MedicalServicesIcon,
+  People as PeopleIcon,
+  Lock as LockIcon,
+  Timeline as TimelineIcon,
+  Settings as SettingsIcon,
+  ExitToApp as ExitToAppIcon
+} from '@mui/icons-material';
+import PatientDashboard from './components/PatientDashboard';
+import RecordsManager from './components/RecordsManager';
+import AccessControl from './components/AccessControl';
+import Analytics from './components/Analytics';
+import Login from './components/Login';
+
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#1976d2',
+    },
+    secondary: {
+      main: '#dc004e',
+    },
+    background: {
+      default: '#f5f5f5',
+    },
+  },
+  typography: {
+    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+  },
+});
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [web3, setWeb3] = useState(null);
+  const [contract, setContract] = useState(null);
+
+  useEffect(() => {
+    const initWeb3 = async () => {
+      if (window.ethereum) {
+        try {
+          const web3Instance = new Web3(window.ethereum);
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
+          setWeb3(web3Instance);
+          
+          const accounts = await web3Instance.eth.getAccounts();
+          const networkId = await web3Instance.eth.net.getId();
+          
+          // Load contract ABI and address based on network
+          const deployedNetwork = HealthcareContract.networks[networkId];
+          const contractInstance = new web3Instance.eth.Contract(
+            HealthcareContract.abi,
+            deployedNetwork && deployedNetwork.address
+          );
+          
+          setContract(contractInstance);
+          setUser({
+            address: accounts[0],
+            role: 'patient', // In real app, determine role from contract
+            name: 'John Doe'
+          });
+        } catch (error) {
+          console.error("Error initializing Web3:", error);
+        }
+      }
+    };
+    
+    initWeb3();
+  }, []);
+
+  const handleLogout = () => {
+    setUser(null);
+    setWeb3(null);
+    setContract(null);
+  };
+
+  const toggleDrawer = (open) => (event) => {
+    if (event.type === 'keydown' && (event.key === 'Tab' || event.key === 'Shift')) {
+      return;
+    }
+    setDrawerOpen(open);
+  };
+
+  if (!user) {
+    return <Login setUser={setUser} />;
+  }
+
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Router>
+        <Box sx={{ display: 'flex' }}>
+          <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+            <Toolbar>
+              <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+                Healthcare Data Integrity System
+              </Typography>
+              <Button color="inherit" onClick={handleLogout}>
+                <ExitToAppIcon sx={{ mr: 1 }} /> Logout
+              </Button>
+            </Toolbar>
+          </AppBar>
+          
+          <Drawer
+            anchor="left"
+            open={drawerOpen}
+            onClose={toggleDrawer(false)}
+            sx={{
+              width: 240,
+              flexShrink: 0,
+              '& .MuiDrawer-paper': {
+                width: 240,
+                boxSizing: 'border-box',
+              },
+            }}
+          >
+            <Toolbar />
+            <Box sx={{ overflow: 'auto' }}>
+              <Box sx={{ p: 2, display: 'flex', alignItems: 'center' }}>
+                <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+                  {user.name.charAt(0)}
+                </Avatar>
+                <div>
+                  <Typography variant="subtitle1">{user.name}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {user.role === 'patient' ? 'Patient' : 'Healthcare Provider'}
+                  </Typography>
+                </div>
+              </Box>
+              <Divider />
+              
+              <List>
+                <ListItem button component="a" href="/">
+                  <ListItemIcon><DashboardIcon /></ListItemIcon>
+                  <ListItemText primary="Dashboard" />
+                </ListItem>
+                <ListItem button component="a" href="/records">
+                  <ListItemIcon><MedicalServicesIcon /></ListItemIcon>
+                  <ListItemText primary="Medical Records" />
+                </ListItem>
+                <ListItem button component="a" href="/access">
+                  <ListItemIcon><LockIcon /></ListItemIcon>
+                  <ListItemText primary="Access Control" />
+                </ListItem>
+                {user.role === 'provider' && (
+                  <ListItem button component="a" href="/analytics">
+                    <ListItemIcon><TimelineIcon /></ListItemIcon>
+                    <ListItemText primary="Clinical Analytics" />
+                  </ListItem>
+                )}
+                <ListItem button component="a" href="/settings">
+                  <ListItemIcon><SettingsIcon /></ListItemIcon>
+                  <ListItemText primary="Settings" />
+                </ListItem>
+              </List>
+            </Box>
+          </Drawer>
+          
+          <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+            <Toolbar />
+            <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+              <Routes>
+                <Route path="/" element={<PatientDashboard user={user} web3={web3} contract={contract} />} />
+                <Route path="/records" element={<RecordsManager user={user} web3={web3} contract={contract} />} />
+                <Route path="/access" element={<AccessControl user={user} web3={web3} contract={contract} />} />
+                <Route path="/analytics" element={<Analytics user={user} web3={web3} contract={contract} />} />
+              </Routes>
+            </Container>
+          </Box>
+        </Box>
+      </Router>
+    </ThemeProvider>
+  );
+}
+
+export default App;
+
+
+// Patient Dashboard Component //
+
+import React, { useState, useEffect } from 'react';
+import { 
+  Grid, 
+  Card, 
+  CardContent, 
+  Typography, 
+  Button, 
+  CircularProgress,
+  Alert,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip
+} from '@mui/material';
+import { 
+  MedicalInformation as MedicalIcon,
+  Timeline as AnalyticsIcon,
+  Lock as AccessIcon,
+  Warning as WarningIcon,
+  CheckCircle as HealthyIcon
+} from '@mui/icons-material';
+
+function PatientDashboard({ user, web3, contract }) {
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [healthStatus, setHealthStatus] = useState(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!contract || !user) return;
+      
+      setLoading(true);
+      try {
+        // Fetch patient records from blockchain
+        const patientId = `patient-${user.address.substring(2, 10)}`;
+        const records = await contract.methods.getRecords(patientId).call({ from: user.address });
+        setRecords(records);
+        
+        // Analyze health status (simplified)
+        if (records.length > 0) {
+          const latestRecord = records[records.length - 1];
+          setHealthStatus(latestRecord.aiDiagnosis.includes('High') ? 'warning' : 'healthy');
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [contract, user]);
+
+  return (
+    <Grid container spacing={3}>
+      {error && (
+        <Grid item xs={12}>
+          <Alert severity="error">{error}</Alert>
+        </Grid>
+      )}
+      
+      {/* Health Status Card */}
+      <Grid item xs={12} md={4}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Health Status
+            </Typography>
+            {loading ? (
+              <CircularProgress />
+            ) : healthStatus ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
+                {healthStatus === 'warning' ? (
+                  <>
+                    <WarningIcon color="warning" sx={{ fontSize: 40, mr: 2 }} />
+                    <Typography variant="h5" color="warning.main">
+                      Needs Attention
+                    </Typography>
+                  </>
+                ) : (
+                  <>
+                    <HealthyIcon color="success" sx={{ fontSize: 40, mr: 2 }} />
+                    <Typography variant="h5" color="success.main">
+                      Good Health
+                    </Typography>
+                  </>
+                )}
+              </Box>
+            ) : (
+              <Typography>No health data available</Typography>
+            )}
+          </CardContent>
+        </Card>
+      </Grid>
+      
+      {/* Quick Actions Card */}
+      <Grid item xs={12} md={4}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Quick Actions
+            </Typography>
+            <Grid container spacing={2} sx={{ mt: 2 }}>
+              <Grid item xs={12}>
+                <Button 
+                  fullWidth 
+                  variant="contained" 
+                  startIcon={<MedicalIcon />}
+                  href="/records"
+                >
+                  View Records
+                </Button>
+              </Grid>
+              <Grid item xs={12}>
+                <Button 
+                  fullWidth 
+                  variant="outlined" 
+                  startIcon={<AccessIcon />}
+                  href="/access"
+                >
+                  Manage Access
+                </Button>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      </Grid>
+      
+      {/* Recent Records Card */}
+      <Grid item xs={12}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Recent Medical Records
+            </Typography>
+            {loading ? (
+              <CircularProgress />
+            ) : records.length > 0 ? (
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Date</TableCell>
+                      <TableCell>AI Diagnosis</TableCell>
+                      <TableCell>Verified</TableCell>
+                      <TableCell>Data Hash</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {records.slice(0, 5).map((record, index) => (
+                      <TableRow key={index}>
+                        <TableCell>
+                          {new Date(record.timestamp * 1000).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={record.aiDiagnosis} 
+                            color={record.aiDiagnosis.includes('High') ? 'warning' : 'success'}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {record.verified ? (
+                            <Chip label="Verified" color="success" size="small" />
+                          ) : (
+                            <Chip label="Pending" color="default" size="small" />
+                          )}
+                        </TableCell>
+                        <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                          {record.dataHash.substring(0, 12)}...{record.dataHash.substring(58)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Typography>No medical records found</Typography>
+            )}
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
+  );
+}
+
+export default PatientDashboard;
+
+// Records Manager Component //
+
+import React, { useState, useEffect } from 'react';
+import {
+  Card,
+  CardContent,
+  Typography,
+  Button,
+  CircularProgress,
+  Alert,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Box,
+  IconButton,
+  Tooltip
+} from '@mui/material';
+import {
+  Add as AddIcon,
+  Visibility as ViewIcon,
+  Verified as VerifiedIcon,
+  Warning as UnverifiedIcon,
+  Refresh as RefreshIcon
+} from '@mui/icons-material';
+import { ipfsClient } from '../../ipfs';
+
+function RecordsManager({ user, web3, contract }) {
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [newRecord, setNewRecord] = useState({
+    diagnosis: '',
+    notes: '',
+    file: null
+  });
+  const [viewingRecord, setViewingRecord] = useState(null);
+
+  useEffect(() => {
+    fetchRecords();
+  }, [contract, user]);
+
+  const fetchRecords = async () => {
+    if (!contract || !user) return;
+    
+    setLoading(true);
+    try {
+      const patientId = `patient-${user.address.substring(2, 10)}`;
+      const records = await contract.methods.getRecords(patientId).call({ from: user.address });
+      
+      // Fetch IPFS data for each record
+      const recordsWithData = await Promise.all(records.map(async record => {
+        try {
+          const data = await ipfsClient.get(record.dataHash);
+          return { ...record, fullData: data };
+        } catch (err) {
+          return record; // Return without full data if IPFS fetch fails
+        }
+      }));
+      
+      setRecords(recordsWithData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddRecord = async () => {
+    if (!newRecord.diagnosis || !newRecord.file) {
+      setError('Please fill all fields and upload a file');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Upload to IPFS
+      const ipfsHash = await ipfsClient.add(JSON.stringify({
+        diagnosis: newRecord.diagnosis,
+        notes: newRecord.notes,
+        file: newRecord.file.name
+      }));
+      
+      // Submit to blockchain
+      await contract.methods.addRecord(
+        `patient-${user.address.substring(2, 10)}`,
+        ipfsHash,
+        newRecord.diagnosis
+      ).send({ from: user.address });
+      
+      // Refresh records
+      await fetchRecords();
+      setOpenDialog(false);
+      setNewRecord({ diagnosis: '', notes: '', file: null });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setNewRecord({ ...newRecord, file });
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+          <Typography variant="h5">Medical Records</Typography>
+          <Box>
+            <Button 
+              variant="contained" 
+              startIcon={<AddIcon />}
+              onClick={() => setOpenDialog(true)}
+              sx={{ mr: 2 }}
+            >
+              Add Record
+            </Button>
+            <Tooltip title="Refresh">
+              <IconButton onClick={fetchRecords}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Box>
+        
+        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+        
+        {loading && !records.length ? (
+          <CircularProgress />
+        ) : records.length > 0 ? (
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Date</TableCell>
+                  <TableCell>Diagnosis</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Data Integrity</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {records.map((record, index) => (
+                  <TableRow key={index}>
+                    <TableCell>
+                      {new Date(record.timestamp * 1000).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={record.aiDiagnosis} 
+                        color={record.aiDiagnosis.includes('High') ? 'warning' : 'success'}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {record.verified ? (
+                        <Chip icon={<VerifiedIcon />} label="Verified" color="success" />
+                      ) : (
+                        <Chip icon={<UnverifiedIcon />} label="Unverified" color="warning" />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label="Blockchain Verified" 
+                        color="success" 
+                        variant="outlined"
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        startIcon={<ViewIcon />}
+                        onClick={() => setViewingRecord(record)}
+                      >
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        ) : (
+          <Typography>No medical records found</Typography>
+        )}
+      </CardContent>
+      
+      {/* Add Record Dialog */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
+        <DialogTitle>Add New Medical Record</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 400, pt: 2 }}>
+            <TextField
+              label="Diagnosis"
+              fullWidth
+              value={newRecord.diagnosis}
+              onChange={(e) => setNewRecord({ ...newRecord, diagnosis: e.target.value })}
+            />
+            <TextField
+              label="Notes"
+              fullWidth
+              multiline
+              rows={3}
+              value={newRecord.notes}
+              onChange={(e) => setNewRecord({ ...newRecord, notes: e.target.value })}
+            />
+            <Button variant="outlined" component="label">
+              Upload Medical File
+              <input type="file" hidden onChange={handleFileChange} />
+            </Button>
+            {newRecord.file && (
+              <Typography variant="caption">
+                Selected: {newRecord.file.name}
+              </Typography>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={handleAddRecord} 
+            variant="contained"
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Submit to Blockchain'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* View Record Dialog */}
+      <Dialog 
+        open={!!viewingRecord} 
+        onClose={() => setViewingRecord(null)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Medical Record - {viewingRecord && new Date(viewingRecord.timestamp * 1000).toLocaleDateString()}
+        </DialogTitle>
+        <DialogContent>
+          {viewingRecord && (
+            <Box sx={{ mt: 2 }}>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="h6">Diagnosis</Typography>
+                  <Typography sx={{ mt: 1 }}>
+                    {viewingRecord.aiDiagnosis}
+                  </Typography>
+                  
+                  <Typography variant="h6" sx={{ mt: 3 }}>Data Integrity</Typography>
+                  <Box sx={{ mt: 1 }}>
+                    <Chip 
+                      label="Blockchain Verified" 
+                      color="success" 
+                      sx={{ mr: 1 }}
+                    />
+                    {viewingRecord.verified && (
+                      <Chip 
+                        label="AI Verified" 
+                        color="success" 
+                      />
+                    )}
+                  </Box>
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <Typography variant="h6">Record Details</Typography>
+                  <Paper sx={{ p: 2, mt: 1, fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                    {viewingRecord.fullData ? (
+                      <pre>{JSON.stringify(viewingRecord.fullData, null, 2)}</pre>
+                    ) : (
+                      <Typography>Unable to load full record data from IPFS</Typography>
+                    )}
+                  </Paper>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setViewingRecord(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+    </Card>
+  );
+}
+
+export default RecordsManager;
+
+// Access Control Component //
+
+import React, { useState, useEffect } from 'react';
+import {
+  Card,
+  CardContent,
+  Typography,
+  Button,
+  CircularProgress,
+  Alert,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  TextField,
+  Box,
+  Divider,
+  Avatar,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  IconButton
+} from '@mui/material';
+import {
+  Add as AddIcon,
+  Delete as RevokeIcon,
+  Check as GrantedIcon,
+  Close as DeniedIcon,
+  MedicalServices as ProviderIcon
+} from '@mui/icons-material';
+
+function AccessControl({ user, web3, contract }) {
+  const [accessList, setAccessList] = useState([]);
+  const [newAddress, setNewAddress] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [logs, setLogs] = useState([]);
+
+  useEffect(() => {
+    fetchAccessData();
+  }, [contract, user]);
+
+  const fetchAccessData = async () => {
+    if (!contract || !user) return;
+    
+    setLoading(true);
+    try {
+      const patientId = `patient-${user.address.substring(2, 10)}`;
+      
+      // Get current access list (simplified - in real app would query all granted addresses)
+      const logs = await contract.methods.getAccessLogs(patientId).call({ from: user.address });
+      setLogs(logs);
+      
+      // For demo, we'll simulate some providers
+      const simulatedProviders = [
+        {
+          address: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+          name: 'Dr. Smith',
+          specialty: 'Cardiology',
+          granted: true
+        },
+        {
+          address: '0x53d284357ec70cE289D6D64134DfAc8E511c8a3D',
+          name: 'Dr. Johnson',
+          specialty: 'Neurology',
+          granted: false
+        }
+      ];
+      setAccessList(simulatedProviders);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const grantAccess = async (address) => {
+    try {
+      setLoading(true);
+      const patientId = `patient-${user.address.substring(2, 10)}`;
+      await contract.methods.grantAccess(patientId, address)
+        .send({ from: user.address });
+      await fetchAccessData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const revokeAccess = async (address) => {
+    try {
+      setLoading(true);
+      const patientId = `patient-${user.address.substring(2, 10)}`;
+      await contract.methods.revokeAccess(patientId, address)
+        .send({ from: user.address });
+      await fetchAccessData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddProvider = () => {
+    if (!newAddress) {
+      setError('Please enter a valid Ethereum address');
+      return;
+    }
+    
+    // In a real app, you would validate the address and potentially look up provider info
+    setAccessList([
+      ...accessList,
+      {
+        address: newAddress,
+        name: 'New Provider',
+        specialty: 'Unknown',
+        granted: false
+      }
+    ]);
+    setNewAddress('');
+  };
+
+  return (
+    <Grid container spacing={3}>
+      <Grid item xs={12} md={6}>
+        <Card>
+          <CardContent>
+            <Typography variant="h5" gutterBottom>
+              Manage Access Permissions
+            </Typography>
+            
+            {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+            
+            <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+              <TextField
+                label="Provider Address"
+                fullWidth
+                value={newAddress}
+                onChange={(e) => setNewAddress(e.target.value)}
+                placeholder="0x..."
+              />
+              <Button 
+                variant="contained" 
+                startIcon={<AddIcon />}
+                onClick={handleAddProvider}
+                disabled={loading}
+              >
+                Add
+              </Button>
+            </Box>
+            
+            {loading && !accessList.length ? (
+              <CircularProgress />
+            ) : (
+              <List>
+                {accessList.map((provider, index) => (
+                  <ListItem 
+                    key={index}
+                    secondaryAction={
+                      provider.granted ? (
+                        <IconButton 
+                          edge="end" 
+                          color="error"
+                          onClick={() => revokeAccess(provider.address)}
+                          disabled={loading}
+                        >
+                          <RevokeIcon />
+                        </IconButton>
+                      ) : (
+                        <Button
+                          variant="outlined"
+                          startIcon={<GrantedIcon />}
+                          onClick={() => grantAccess(provider.address)}
+                          disabled={loading}
+                        >
+                          Grant
+                        </Button>
+                      )
+                    }
+                  >
+                    <ListItemAvatar>
+                      <Avatar>
+                        <ProviderIcon />
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={provider.name}
+                      secondary={`${provider.specialty} - ${provider.address.substring(0, 12)}...`}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </CardContent>
+        </Card>
+      </Grid>
+      
+      <Grid item xs={12} md={6}>
+        <Card>
+          <CardContent>
+            <Typography variant="h5" gutterBottom>
+              Access History Logs
+            </Typography>
+            
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              All access to your medical records is permanently recorded on the blockchain
+            </Typography>
+            
+            {logs.length > 0 ? (
+              <TableContainer component={Paper} sx={{ mt: 2 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Accessed By</TableCell>
+                      <TableCell>Purpose</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {logs.slice(0, 5).map((log, index) => (
+                      <TableRow key={index}>
+                        <TableCell>
+                          {new Date(log.timestamp * 1000).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell sx={{ fontFamily: 'monospace' }}>
+                          {log.accessedBy.substring(0, 8)}...{log.accessedBy.substring(36)}
+                        </TableCell>
+                        <TableCell>{log.purpose}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Typography sx={{ mt: 2 }}>No access logs found</Typography>
+            )}
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
+  );
+}
+
+export default AccessControl;
